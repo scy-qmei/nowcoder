@@ -1,37 +1,44 @@
 package com.nowcoder.leetcode;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class Test {
     public static void main(String[] args) {
-        new Solution().restoreIpAddresses("25525511135");
+        new Solution().solveNQueens(1);
     }
 }
 class Solution {
-    List<String> res = new ArrayList<>();
-    StringBuilder sb = new StringBuilder();
-    public List<String> restoreIpAddresses(String s) {
-        if (s.length() < 4) return res;
-        recur(s, 0, 4);
+    List<List<String>> res = new ArrayList<>();
+    List<String> tmp = new ArrayList<>();
+    public List<List<String>> solveNQueens(int n) {
+        int[][] chessboard = new int[n][n];
+        recur(n, 0, chessboard);
         return res;
-        
     }
-    public void recur(String s, int index, int count) {
-        if (count == 1 && Integer.parseInt(s.substring(index, s.length())) > 255) return;
-        if (index == s.length()) {
-            res.add(new String(sb));
-            res.remove(res.size() - 1);
+    public void recur(int n, int row, int[][] checkboard) {
+
+        if (tmp.size() == n) {
+            res.add(new ArrayList(tmp));
             return;
         }
-        for (int i = index; i < s.length(); i++) {
-            if (Integer.parseInt(s.substring(index, i + 1)) >= 0
-                    && Integer.parseInt(s.substring(index, i + 1)) <= 255) {
-                sb.append(s.substring(index, i + 1) + ".");
+        if (row == n) return;
+        StringBuilder sb = new StringBuilder("");
+        for(int i = 0; i < n - 1; i++) sb.append(".");
+        for (int i = 0; i < n; i++) {
+            if (i == 0 && row != 0) {
+                if (checkboard[row - 1][i] == 1) continue;
+            } else if (i != 0 && row != 0) {
+                if (checkboard[row - 1][i - 1] == 1 || checkboard[row - 1][i] == 1) continue;
             }
-            recur(s, i + 1, count - 1);
-            sb.deleteCharAt(sb.length() - 1);
-            sb.deleteCharAt(sb.length() - 1);
+
+            sb.insert(i, "Q");
+            checkboard[row][i] = 1;
+            tmp.add(sb.toString());
+            recur(n, row + 1, checkboard);
+            tmp.remove(tmp.size() - 1);
+            checkboard[row][i] = 0;
         }
     }
 }
