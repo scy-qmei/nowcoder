@@ -17,7 +17,7 @@ public class DiscussPostService {
         return discussPostMapper.selectDiscussPosts(userId, offset, limit);
     }
     public int getDiscussPostRows(int userId) {
-        System.out.println("hahahhah");
+
         return discussPostMapper.getDiscussPostRows(userId);
     }
 }

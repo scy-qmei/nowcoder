@@ -9,6 +9,7 @@
     <sql id="insertFields">
         username, password, salt, email, type, status, activation_code, header_url, create_time
     </sql>
+    <!-- 这里的keyproperty用来指明主键ID -->
     <insert id="insertUser" keyProperty="id" parameterType="User">
         insert into user (<include refid="insertFields"></include>) values(#{username}, #{password}, #{salt}, #{email},
         #{type}, #{status}, #{activationCode}, #{headerUrl}, #{createTime});
