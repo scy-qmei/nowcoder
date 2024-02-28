@@ -15,7 +15,7 @@ public class CommunityUtil {
      * @return
      */
     public static String generateRandomStr() {
-        return UUID.randomUUID().toString();
+        return UUID.randomUUID().toString().replaceAll("-", "");
     }
 
     /**

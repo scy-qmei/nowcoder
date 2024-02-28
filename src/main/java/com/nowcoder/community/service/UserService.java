@@ -122,10 +122,10 @@ public class UserService implements CommunityConstants{
      * 该业务用来处理用户的登录，对输入的登录数据进行校验，校验成功则生成登录凭证，否则返回错误信息
      * @param username
      * @param password
-     * @param expiredTime
+     * @param expiredTime 这里的过期时间设置为long类型以防止后续的乘1000ms溢出int的最大值
      * @return
      */
-    public Map<String,String> login(String username, String password, int expiredTime) {
+    public Map<String,String> login(String username, String password, Long expiredTime) {
         Map<String,String> map = new HashMap<>();
         if (StringUtils.isBlank(username)) {
             map.put("usernameMsg","用户名为空");
@@ -169,5 +169,18 @@ public class UserService implements CommunityConstants{
      */
     public void logout(String ticket) {
         loginTicketMapper.updateTicketByStatus(ticket,1);
+    }
+
+    public LoginTicket selectLoginTicketByTicket(String ticket) {
+        return loginTicketMapper.selectTicketByTicket(ticket);
+    }
+
+    public void updateUserHeaderUrl(int userId, String headerUrl) {
+        userMapper.updateHeader(userId,headerUrl);
+    }
+
+    public void updateUserPassword(User user) {
+        String s = CommunityUtil.md5(user.getPassword() + user.getSalt());
+        userMapper.updatePassword(user.getId(), s);
     }
 }

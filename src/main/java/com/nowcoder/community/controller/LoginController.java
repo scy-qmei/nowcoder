@@ -135,14 +135,14 @@ public class LoginController implements CommunityConstants {
             return "/site/login";
         }
         //如果正确，再调用登录校验业务
-        int expriedTime = rememberMe ? REMEMBER_USER : NOT_REMEMBER_USER;
+        Long expriedTime =  (long) (rememberMe ? REMEMBER_USER : NOT_REMEMBER_USER);
         Map<String, String> login = userService.login(username, password, expriedTime);
         //如果登录成功，就将ticket设置为cookie响应给客户端，让其保存，并重定向到社区的首页
         if (login.containsKey("ticket")) {
             Cookie cookie = new Cookie("ticket", login.get("ticket"));
             //这里把项目名设置为变量，方便之后的修改
             cookie.setPath(proPath);
-            cookie.setMaxAge(expriedTime);
+            cookie.setMaxAge(expriedTime.intValue());
             response.addCookie(cookie);
             //注意这里直接返回/index是找不到的，所以响应给浏览器让其重新请求/index，匹配对应的handler进行页面跳转
             return "redirect:/index";
