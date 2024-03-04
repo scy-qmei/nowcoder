@@ -9,4 +9,9 @@ public interface CommunityConstants {
     int REMEMBER_USER = 3600 * 24 * 100;
     //不勾选记住用户，那么登录凭证的有效期只有12小时
     int NOT_REMEMBER_USER = 3600 * 12;
+
+    //评论的类型是帖子
+    int COMMENT_TYPE_POST = 1;
+    //评论的类型是评论
+    int COMMENT_TYPE_REPLY = 2;
 }

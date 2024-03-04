@@ -7,6 +7,18 @@
     <sql id="selectFields">
         id,user_id,title,content,type,status,create_time,comment_count,score
     </sql>
+    <sql id="insertFields">
+        user_id,title,content,type,status,create_time,comment_count,score
+    </sql>
+    <insert id="addDiscussPort" keyProperty="id">
+        insert into discuss_post(<include refid="insertFields"></include>)
+        values(#{userId},#{title},#{content},#{type},#{status},#{createTime},#{commentCount},#{score});
+    </insert>
+    <update id="updateDiscussPostComment">
+        update discuss_post
+        set comment_count = #{commentCount}
+        where id = #{id}
+    </update>
 
     <select id="selectDiscussPosts" resultType="DiscussPost">
         select <include refid="selectFields"></include>
@@ -25,6 +37,11 @@
         <if test="userId!=0">
             and user_id = #{userId}
         </if>
+    </select>
+    <select id="selectDiscussPostById" resultType="DiscussPost">
+        select <include refid="selectFields"></include>
+        from discuss_post
+        where id = #{id}
     </select>
 
 </mapper>

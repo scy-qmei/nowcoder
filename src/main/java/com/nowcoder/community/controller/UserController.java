@@ -1,5 +1,6 @@
 package com.nowcoder.community.controller;
 
+import com.nowcoder.community.annotation.CheckLogin;
 import com.nowcoder.community.entity.User;
 import com.nowcoder.community.service.UserService;
 import com.nowcoder.community.util.CommunityUtil;
@@ -36,7 +37,7 @@ public class UserController {
     private String loadPath;
     @Autowired
     private UserService userService;
-
+    @CheckLogin
     @RequestMapping(value = "setting",method = RequestMethod.GET)
     public String jumpToSettingPage() {
         return "/site/setting";
@@ -113,6 +114,14 @@ public class UserController {
         }
     }
 
+    /**
+     * 该方法接受修改密码表单提交过来的旧密码，新密码以及确认密码，对齐进行校验后进行密码的更新
+     * @param oldPassword
+     * @param newPassword
+     * @param rePassword
+     * @param model
+     * @return
+     */
     @RequestMapping(value = "password",method = RequestMethod.POST)
     public String changePassword(String oldPassword, String newPassword, String rePassword, Model model) {
         if (StringUtils.isBlank(oldPassword) || StringUtils.isBlank(newPassword) || StringUtils.isBlank(rePassword)) {

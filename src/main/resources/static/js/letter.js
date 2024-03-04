@@ -5,9 +5,23 @@ $(function(){
 
 function send_letter() {
 	$("#sendModal").modal("hide");
+	var toName = $("#recipient-name").val();
+	var toContent = $("#message-text").val();
+	$.post(
+		CONTEXT_PATH + "/message/add",
+		{
+			"toName":toName,
+			"content":toContent
+		},
+		function (data) {
+			data = $.parseJSON(data);
+			$("#hintBody").text(data.msg);
+		}
+	)
 	$("#hintModal").modal("show");
 	setTimeout(function(){
 		$("#hintModal").modal("hide");
+		location.reload();
 	}, 2000);
 }
 

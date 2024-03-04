@@ -6,7 +6,7 @@ import java.util.List;
 
 public class Test {
     public static void main(String[] args) {
-        new Solution().solveNQueens(1);
+        System.out.println(Solution.function(new int[]{1,3,4},new int[] {15,20,30},4));
     }
 }
 class Solution {
@@ -40,5 +40,18 @@ class Solution {
             tmp.remove(tmp.size() - 1);
             checkboard[row][i] = 0;
         }
+    }
+    public static int function(int[] weights, int[] values, int bagWeight) {
+        int[][] dp = new int[weights.length][bagWeight + 1];
+        for(int j = weights[0]; j <= bagWeight; j++) {
+            dp[0][j] = values[0];
+        }
+        for (int i = 1; i < weights.length; i++) {
+            for (int j = 1; j <= bagWeight; j++) {
+                if (j < weights[i]) dp[i][j] = dp[i - 1][j];
+                else dp[i][j] = Math.max(dp[i - 1][j], dp[i - 1][j - weights[i]] + values[j]);
+            }
+        }
+        return dp[weights.length -1][bagWeight];
     }
 }
