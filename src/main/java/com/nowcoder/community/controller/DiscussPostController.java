@@ -1,11 +1,13 @@
 package com.nowcoder.community.controller;
 
+import com.nowcoder.community.annotation.CheckLogin;
 import com.nowcoder.community.entity.Comment;
 import com.nowcoder.community.entity.DiscussPost;
 import com.nowcoder.community.entity.Page;
 import com.nowcoder.community.entity.User;
 import com.nowcoder.community.service.CommentService;
 import com.nowcoder.community.service.DiscussPostService;
+import com.nowcoder.community.service.LikeService;
 import com.nowcoder.community.service.UserService;
 import com.nowcoder.community.util.CommunityConstants;
 import com.nowcoder.community.util.CommunityUtil;
@@ -29,6 +31,8 @@ public class DiscussPostController implements CommunityConstants {
     private UserService userService;
     @Autowired
     private CommentService commentService;
+    @Autowired
+    private LikeService likeService;
 
     @RequestMapping(value = "add",method = RequestMethod.POST)
     @ResponseBody
@@ -46,6 +50,7 @@ public class DiscussPostController implements CommunityConstants {
         return CommunityUtil.getJsonString(0, "发送帖子成功");
     }
     @RequestMapping(value = "detail/{id}",method = RequestMethod.GET)
+
     public String getDiscussPostDetail(@PathVariable("id") int id, Model model, Page page) {
         //显示帖子详情
         //这里添加显示的帖子内容以及发布帖子的用户信息
@@ -53,6 +58,15 @@ public class DiscussPostController implements CommunityConstants {
         User userById = userService.getUserById(discussPost.getUserId());
         model.addAttribute("discussPost", discussPost);
         model.addAttribute("author", userById);
+        //获取帖子的点赞信息
+        User user = hostHolder.getUser();
+        Long postLikeCount = likeService.getLikeCount(COMMENT_TYPE_POST, discussPost.getId());;
+        int postLikeStatus = 0;
+        if (user != null) {
+             postLikeStatus = likeService.getLikeStatus(user.getId(), COMMENT_TYPE_POST, discussPost.getId());
+        }
+        model.addAttribute("likeCount",postLikeCount);
+        model.addAttribute("likeStatus", postLikeStatus);
         //帖子的评论以及评论的回复信息
 
         //帖子的评论要分页显示，这里设置分页信息
@@ -71,7 +85,14 @@ public class DiscussPostController implements CommunityConstants {
             //集合中放置当前评论以及评论的用户，为后续的显示作准备
             commentMap.put("comment", comment);
             commentMap.put("user", userById1);
-
+            //评论的点赞信息
+            Long commentLikeCount = likeService.getLikeCount(COMMENT_TYPE_REPLY, comment.getId());
+            int commentLikeStatus = 0;
+            if (user != null) {
+                likeService.getLikeStatus(user.getId(), COMMENT_TYPE_REPLY, comment.getId());
+            }
+            commentMap.put("likeCount",commentLikeCount);
+            commentMap.put("likeStatus",commentLikeStatus);
             //这里切记每条评论还有他们的回复，所以评论的回复也要放入Vo中进行显示，这里的逻辑与评论的逻辑一样
             List<Map<String, Object>> replyVoList = new ArrayList<>();
             //这里因为评论的回复数量不需要做分页处理，所以直接显示所有的回复！
@@ -83,6 +104,14 @@ public class DiscussPostController implements CommunityConstants {
                 //这里放置的是每个评论的回复以及回复的用户，供后面的显示做准备
                 replyMap.put("reply", reply);
                 replyMap.put("user", userById2);
+                //回复的点赞消息
+                Long replyLikeCount = likeService.getLikeCount(COMMENT_TYPE_REPLY, reply.getId());
+                int replyLikeStatus = 0;
+                if (user != null) {
+                    likeService.getLikeStatus(user.getId(), COMMENT_TYPE_REPLY, reply.getId());
+                }
+                replyMap.put("likeCount",replyLikeCount);
+                replyMap.put("likeStatus", replyLikeStatus);
                 //这里要根据回复是回复别人的回复还是回复的帖子做不同的显示，所以需要把回复对象也加入vo
                 User targetUser = reply.getTargetId() == 0 ? null : userService.getUserById(reply.getTargetId());
                 replyMap.put("target", targetUser);

@@ -6,41 +6,24 @@ import java.util.List;
 
 public class Test {
     public static void main(String[] args) {
-        System.out.println(Solution.function(new int[]{1,3,4},new int[] {15,20,30},4));
+       new Solution().rob(new int[]{2,7,9,3,1});
     }
 }
 class Solution {
-    List<List<String>> res = new ArrayList<>();
-    List<String> tmp = new ArrayList<>();
-    public List<List<String>> solveNQueens(int n) {
-        int[][] chessboard = new int[n][n];
-        recur(n, 0, chessboard);
-        return res;
-    }
-    public void recur(int n, int row, int[][] checkboard) {
-
-        if (tmp.size() == n) {
-            res.add(new ArrayList(tmp));
-            return;
-        }
-        if (row == n) return;
-        StringBuilder sb = new StringBuilder("");
-        for(int i = 0; i < n - 1; i++) sb.append(".");
-        for (int i = 0; i < n; i++) {
-            if (i == 0 && row != 0) {
-                if (checkboard[row - 1][i] == 1) continue;
-            } else if (i != 0 && row != 0) {
-                if (checkboard[row - 1][i - 1] == 1 || checkboard[row - 1][i] == 1) continue;
+    public int rob(int[] nums) {
+        if (nums.length == 1) return nums[0];
+        int[] dp = new int[nums.length + 1];
+        dp[1] = nums[0];
+        dp[2] = nums[1];
+        for (int i = 3; i < dp.length; i++) {
+            for (int j = i - 2; j >= 0; j--) {
+                dp[i] = Math.max(dp[j] + nums[i - 1], dp[i - 1]);
             }
 
-            sb.insert(i, "Q");
-            checkboard[row][i] = 1;
-            tmp.add(sb.toString());
-            recur(n, row + 1, checkboard);
-            tmp.remove(tmp.size() - 1);
-            checkboard[row][i] = 0;
         }
+        return dp[dp.length - 1];
     }
+
     public static int function(int[] weights, int[] values, int bagWeight) {
         int[][] dp = new int[weights.length][bagWeight + 1];
         for(int j = weights[0]; j <= bagWeight; j++) {

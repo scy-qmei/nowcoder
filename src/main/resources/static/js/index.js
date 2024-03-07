@@ -16,7 +16,7 @@ function publish() {
 		function (data) {
 			data = $.parseJSON(data);
 			//根据id获取文本框，text给文本框的内容赋值
-			$("hintBody").text(data.msg);
+			$("#hintBody").text(data.msg);
 			//显示提示框
 			$("#hintModal").modal("show");
 			//两秒之后关闭提示框，如果响应成功则刷新页面更新内容，否则不做任何操作

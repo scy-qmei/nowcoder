@@ -4,10 +4,14 @@ import com.google.code.kaptcha.Producer;
 import com.nowcoder.community.entity.User;
 import com.nowcoder.community.service.UserService;
 import com.nowcoder.community.util.CommunityConstants;
+import com.nowcoder.community.util.CommunityUtil;
+import com.nowcoder.community.util.CookieUtil;
+import com.nowcoder.community.util.RedisKeyUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.CookieValue;
@@ -25,6 +29,7 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 
 @Controller
@@ -32,6 +37,8 @@ import java.util.Map;
 public class LoginController implements CommunityConstants {
     @Autowired
     private UserService userService;
+    @Autowired
+    private RedisTemplate redisTemplate;
     @Autowired
     private Producer kaptchaProducer;
     @Value("server.servlet.context-path")
@@ -86,22 +93,60 @@ public class LoginController implements CommunityConstants {
         return "/site/login";
     }
 
+//    /**
+//     * 该方法就是接受浏览器的生成验证码请求，生成一个随机的验证码图片并返回给客户端
+//     * 该方法由于不用进行页面的跳转，只用响应给浏览器一个图片，所以方法就不需要返回值
+//     * @param session session用来存储生成的验证码，以便后续客户登录后进行验证码的验证，因为这是一个跨请求（先生成验证码，再登录）
+//     *                的连续的交互操作，且验证码是敏感内容，所以用到session
+//     * @param response 这里就是用来设置响应数据，以响应给客户端生成的验证码图片
+//     *
+//     */
+//    @RequestMapping(value = "kaptcha",method = RequestMethod.GET)
+//    public void kaptchaProducer(HttpSession session, HttpServletResponse response) {
+//        //调用IOC容器中的验证码生成类生成验证码图片
+//        String text = kaptchaProducer.createText();
+//        BufferedImage image = kaptchaProducer.createImage(text);
+//
+//        //session中存储生成的验证码的内容，为了后续用户登录时做验证码的比对！
+//        session.setAttribute("kaptcha", text);
+//
+//        //设置响应的类型是png格式的图片
+//        response.setContentType("image/png");
+//        try {
+//            //这里因为是要传输图片，所以选取字节流是更好的
+//            ServletOutputStream outputStream = response.getOutputStream();
+//            //牢记图片发送的使用类是ImageIO
+//            ImageIO.write(image, "png", outputStream);
+//        } catch (IOException e) {
+//            log.error("生成验证码失败，错误原因是" + e.getMessage());
+//        }
+//    }
+
     /**
-     * 该方法就是接受浏览器的生成验证码请求，生成一个随机的验证码图片并返回给客户端
-     * 该方法由于不用进行页面的跳转，只用响应给浏览器一个图片，所以方法就不需要返回值
-     * @param session session用来存储生成的验证码，以便后续客户登录后进行验证码的验证，因为这是一个跨请求（先生成验证码，再登录）
-     *                的连续的交互操作，且验证码是敏感内容，所以用到session
-     * @param response 这里就是用来设置响应数据，以响应给客户端生成的验证码图片
-     *
+     * 生成验证码的redis重构，以提高性能
+     * @param response
      */
     @RequestMapping(value = "kaptcha",method = RequestMethod.GET)
-    public void kaptchaProducer(HttpSession session, HttpServletResponse response) {
+    public void kaptchaProducer(HttpServletResponse response) {
         //调用IOC容器中的验证码生成类生成验证码图片
         String text = kaptchaProducer.createText();
         BufferedImage image = kaptchaProducer.createImage(text);
 
         //session中存储生成的验证码的内容，为了后续用户登录时做验证码的比对！
-        session.setAttribute("kaptcha", text);
+        //session.setAttribute("kaptcha", text);
+        String kaptchaOwner = CommunityUtil.generateRandomStr();
+        Cookie cookie = new Cookie("kaptchaOwner", kaptchaOwner);
+        //设置cookie的有效时间为一分钟，因为验证码没必要永久保留，设置一个时间期限即可
+        cookie.setMaxAge(60);
+        //设置可以携带cookie的访问路径为整个项目
+        cookie.setPath(proPath);
+        //cookie响应给浏览器进行保存
+        response.addCookie(cookie);
+
+        //redis存储验证码
+        String kaptcha = RedisKeyUtil.getKaptcha(kaptchaOwner);
+        //设置redis存储的过期时间和cookie的过期时间一致！
+        redisTemplate.opsForValue().set(kaptcha, text, 60, TimeUnit.SECONDS);
 
         //设置响应的类型是png格式的图片
         response.setContentType("image/png");
@@ -116,19 +161,29 @@ public class LoginController implements CommunityConstants {
     }
 
     /**
-     * 该方法用来调用用户登录业务进行用户的登录
-     * @param username 输入用户名
-     * @param password 输入用户密码
-     * @param rememberMe 是否记住该用户
-     * @param code 输入的验证码
-     * @param session 从session中取出验证码比较
-     * @param response 响应给用户ticket
+     * 使用redis优化的重构的登录业务
+     * @param username
+     * @param password
+     * @param rememberMe
+     * @param code
+     * @param response
+     * @param model
      * @return
      */
     @RequestMapping(value = "login",method = RequestMethod.POST)
     public String login(String username, String password, boolean rememberMe,String code,
-                        HttpSession session, HttpServletResponse response, Model model) {
-        String kaptcha = session.getAttribute("kaptcha").toString();
+                        HttpServletResponse response, Model model, HttpServletRequest request) {
+
+        String kaptchaOwner = CookieUtil.getValue(request, "kaptchaOwner");
+        String kaptcha = null;
+        //先判断验证码的cookie是否过期，如果没有过期在从redis中查询对应的验证码！
+        if (StringUtils.isNoneBlank(kaptchaOwner)) {
+             String kaptchaKey = RedisKeyUtil.getKaptcha(kaptchaOwner);
+             kaptcha = (String) redisTemplate.opsForValue().get(kaptchaKey);
+        } else {
+            model.addAttribute("codeMsg", "验证码已经过期，请重新输入");
+            return "/site/login";
+        }
         //首先判断验证码是否正确
         if (StringUtils.isBlank(code) || StringUtils.isBlank(kaptcha) || !StringUtils.equalsAnyIgnoreCase(code, kaptcha)) {
             model.addAttribute("codeMsg", "验证码有误，请重新输入");
@@ -154,6 +209,46 @@ public class LoginController implements CommunityConstants {
             return "/site/login";
         }
     }
+
+//    /**
+//     * 该方法用来调用用户登录业务进行用户的登录
+//     * @param username 输入用户名
+//     * @param password 输入用户密码
+//     * @param rememberMe 是否记住该用户
+//     * @param code 输入的验证码
+//     * @param session 从session中取出验证码比较
+//     * @param response 响应给用户ticket
+//     * @return
+//     */
+//    @RequestMapping(value = "login",method = RequestMethod.POST)
+//    public String login(String username, String password, boolean rememberMe,String code,
+//                        HttpSession session, HttpServletResponse response, Model model) {
+//        String kaptcha = session.getAttribute("kaptcha").toString();
+//        //首先判断验证码是否正确
+//        if (StringUtils.isBlank(code) || StringUtils.isBlank(kaptcha) || !StringUtils.equalsAnyIgnoreCase(code, kaptcha)) {
+//            model.addAttribute("codeMsg", "验证码有误，请重新输入");
+//            return "/site/login";
+//        }
+//        //如果正确，再调用登录校验业务
+//        Long expriedTime =  (long) (rememberMe ? REMEMBER_USER : NOT_REMEMBER_USER);
+//        Map<String, String> login = userService.login(username, password, expriedTime);
+//        //如果登录成功，就将ticket设置为cookie响应给客户端，让其保存，并重定向到社区的首页
+//        if (login.containsKey("ticket")) {
+//            Cookie cookie = new Cookie("ticket", login.get("ticket"));
+//            //这里把项目名设置为变量，方便之后的修改
+//            cookie.setPath(proPath);
+//            cookie.setMaxAge(expriedTime.intValue());
+//            response.addCookie(cookie);
+//            //注意这里直接返回/index是找不到的，所以响应给浏览器让其重新请求/index，匹配对应的handler进行页面跳转
+//            return "redirect:/index";
+//        } else {
+//            //这里如果登录失败，就保留在当前页面，因为要显示错误信息，所以将信息加入model进行动态渲染
+//            //注意如果没有用户名错误，那么就为null，前端逻辑中对于null值就不会显示
+//            model.addAttribute("usernameMsg", login.get("usernameMsg"));
+//            model.addAttribute("passwordMsg", login.get("passwordMsg"));
+//            return "/site/login";
+//        }
+//    }
 
     /**
      *

@@ -2,14 +2,15 @@ package com.nowcoder.community.service;
 
 import com.nowcoder.community.entity.LoginTicket;
 import com.nowcoder.community.entity.User;
-import com.nowcoder.community.mapper.LoginTicketMapper;
 import com.nowcoder.community.mapper.UserMapper;
 import com.nowcoder.community.util.CommunityConstants;
 import com.nowcoder.community.util.CommunityUtil;
 import com.nowcoder.community.util.MailClient;
+import com.nowcoder.community.util.RedisKeyUtil;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
@@ -23,8 +24,10 @@ import java.util.Random;
 public class UserService implements CommunityConstants{
     @Autowired
     private UserMapper userMapper;
+//    @Autowired
+//    private LoginTicketMapper loginTicketMapper;
     @Autowired
-    private LoginTicketMapper loginTicketMapper;
+    private RedisTemplate redisTemplate;
     @Autowired
     private MailClient mailClient;
     @Autowired
@@ -34,8 +37,16 @@ public class UserService implements CommunityConstants{
     @Value("${server.servlet.context-path}")
     private String proPath;
 
+    //用redis进行重构,这里因为用户业务对外只提供了通过id查询用户数据的方法，所以对该方法进行重构即可
+    //这样所有需要用到用户数据的请求都会先去查询缓存中是否有对应的数据！
     public User getUserById(int userId) {
-        return userMapper.selectById(userId);
+//        return userMapper.selectById(userId);
+        User user = getCache(userId);
+        if (user == null) {
+            user = userMapper.selectById(userId);
+            addCache(user);
+        }
+        return user;
     }
 
     /**
@@ -113,7 +124,9 @@ public class UserService implements CommunityConstants{
         if (user.getStatus() == 1) {
            return ACTIVATE_REPEATE;
         } else if (user.getActivationCode().equals(code)) {
+            //涉及缓存数据的修改，需要清除缓存
             userMapper.updateStatus(userId, 1);
+            clearCache(userId);
             return ACTIVATE_SUCCESS;
         } else return ACTIVATE_FAILURE;
     }
@@ -155,7 +168,12 @@ public class UserService implements CommunityConstants{
         loginTicket.setTicket(CommunityUtil.generateRandomStr());
         loginTicket.setExpired(new Date(System.currentTimeMillis() + expiredTime * 1000));
         loginTicket.setStatus(0);
-        loginTicketMapper.insertTicket(loginTicket);
+//        loginTicketMapper.insertTicket(loginTicket);
+        //这里利用redis对方法进行重构，以提升项目的整体性能
+        String ticketKey = RedisKeyUtil.getTicket(loginTicket.getTicket());
+        //redistemplate的value的序列化方式，我们在配置类中已经指明了使用json的序列化方式
+        //因此这里会将登录凭证序列化为json串存入redis
+        redisTemplate.opsForValue().set(ticketKey, loginTicket);
 
         //这里往map中添加ticket是为了响应给客户端让其存储登录凭证以便后续的交互
         map.put("ticket", loginTicket.getTicket());
@@ -165,25 +183,57 @@ public class UserService implements CommunityConstants{
 
     /**
      * 该业务用来更新登录凭证的状态为失效状态，以完成用户的退出登录
+     * redis重构之后，逻辑就是根据ticket从redis中取出，然后更改之后再存入redis
      * @param ticket
      */
     public void logout(String ticket) {
-        loginTicketMapper.updateTicketByStatus(ticket,1);
+//        loginTicketMapper.updateTicketByStatus(ticket,1);
+        String ticket1 = RedisKeyUtil.getTicket(ticket);
+        //这里因为存入redis是序列化为json串了，从redis中获取就直接可以转换为对应的对象了！！
+        LoginTicket loginTicket = (LoginTicket) redisTemplate.opsForValue().get(ticket1);
+        loginTicket.setStatus(1);
+        redisTemplate.opsForValue().set(ticket1, loginTicket);
     }
 
     public LoginTicket selectLoginTicketByTicket(String ticket) {
-        return loginTicketMapper.selectTicketByTicket(ticket);
+        String ticket1 = RedisKeyUtil.getTicket(ticket);
+        return (LoginTicket) redisTemplate.opsForValue().get(ticket1);
     }
 
     public void updateUserHeaderUrl(int userId, String headerUrl) {
         userMapper.updateHeader(userId,headerUrl);
+        clearCache(userId);
     }
 
     public void updateUserPassword(User user) {
         String s = CommunityUtil.md5(user.getPassword() + user.getSalt());
         userMapper.updatePassword(user.getId(), s);
+        clearCache(user.getId());
     }
     public User getUserByName(String username) {
         return userMapper.selectByName(username);
+    }
+    /**
+     * 使用redis来缓存用户信息，从而避免频繁的访问mysql产生的性能消耗
+     * 使用缓存有三大步
+     * 使用数据先找缓存
+     * 找不到缓存，从mysql找放入缓存
+     * 数据更新，清除缓存
+     */
+    //1 使用用户数据先从缓存找
+    private User getCache(int userId) {
+        String userKey = RedisKeyUtil.getUser(userId);
+        return (User) redisTemplate.opsForValue().get(userKey);
+    }
+    //2 如果缓存里没有，就加入缓存
+    public void addCache(User user) {
+        String userKey = RedisKeyUtil.getUser(user.getId());
+        redisTemplate.opsForValue().set(userKey, user);
+    }
+    //3 如果数据发生了更新，清除缓存
+    public void clearCache(int userId) {
+        String user = RedisKeyUtil.getUser(userId);
+        //清除缓存，直接删除数据的key即可！
+        redisTemplate.delete(user);
     }
 }

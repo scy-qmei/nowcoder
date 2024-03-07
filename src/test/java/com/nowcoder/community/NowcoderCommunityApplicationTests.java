@@ -10,11 +10,15 @@ import com.nowcoder.community.mapper.MessageMapper;
 import com.nowcoder.community.mapper.UserMapper;
 import com.nowcoder.community.util.MailClient;
 import com.nowcoder.community.util.SensitiveFilter;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.Test;
 import org.junit.platform.commons.logging.Logger;
 import org.junit.platform.commons.logging.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.stereotype.Component;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
@@ -36,6 +40,8 @@ class NowcoderCommunityApplicationTests {
     private LoginTicketMapper loginTicketMapper;
     @Autowired
     private SensitiveFilter sensitiveFilter;
+    @Autowired
+    private Producer producer;
 
     @Autowired
     private MessageMapper messageMapper;
@@ -59,7 +65,7 @@ class NowcoderCommunityApplicationTests {
 
     }
     @Test
-    public void mailThymeleaf() {
+    public void mailThymeleaf() throws InterruptedException {
 //        Context context = new Context();
 //        context.setVariable("username", "scy");
 //        String process = templateEngine.process("/mail/demo", context);
@@ -79,26 +85,49 @@ class NowcoderCommunityApplicationTests {
 //        String s = sensitiveFilter.sensitiveReplace("我爱☆嫖☆娼☆，我爱☆赌☆博☆，我爱☆开☆票☆，我爱☆吸☆毒☆，哈哈");
 //        System.out.println(s);
 
-        List<Message> messages = messageMapper.selectConversationList(111, 0, 20);
-        for (Message message : messages) {
-            System.out.println(message);
-        }
+//        List<Message> messages = messageMapper.selectConversationList(111, 0, 20);
+//        for (Message message : messages) {
+//            System.out.println(message);
+//        }
+//
+//        int count = messageMapper.selectConversionCount(111);
+//        System.out.println(count);
+//
+//        List<Message> messages1 = messageMapper.selectMessageList("111_112", 0, 20);
+//        for (Message message : messages1) {
+//
+//            System.out.println(message);
+//        }
+//        int count1 = messageMapper.selectMessageCount("111_112");
+//        System.out.println(count1);
+//        int count2 = messageMapper.selectUnReadMessageCount(111, "111_131");
+//        System.out.println(count2);
 
-        int count = messageMapper.selectConversionCount(111);
-        System.out.println(count);
-
-        List<Message> messages1 = messageMapper.selectMessageList("111_112", 0, 20);
-        for (Message message : messages1) {
-
-            System.out.println(message);
-        }
-        int count1 = messageMapper.selectMessageCount("111_112");
-        System.out.println(count1);
-        int count2 = messageMapper.selectUnReadMessageCount(111, "111_131");
-        System.out.println(count2);
+        producer.sendMessage("test","hello");
+        producer.sendMessage("test","hello1");
+        Thread.sleep(5000);
 
 
     }
 
 
+}
+
+
+@Component
+class Producer{
+    @Autowired
+    private KafkaTemplate kafkaTemplate;
+
+    public void sendMessage(String topic, String content) {
+        kafkaTemplate.send(topic,content);
+    }
+}
+@Component
+class Consumer{
+
+    @KafkaListener(topics = {"test"})
+    public void getMessage(ConsumerRecord record) {
+        System.out.println(record.value());
+    }
 }

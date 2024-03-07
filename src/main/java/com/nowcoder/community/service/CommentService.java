@@ -48,4 +48,8 @@ public class CommentService implements CommunityConstants {
             discussPostService.updateDiscussPosyComment(comment.getEntityId(), discussPost.getCommentCount() + 1);
         }
     }
+
+    public Comment selectCommentById(int commentId) {
+        return commentMapper.selectCommentById(commentId);
+    }
 }

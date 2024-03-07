@@ -2,7 +2,10 @@ package com.nowcoder.community.controller;
 
 import com.nowcoder.community.annotation.CheckLogin;
 import com.nowcoder.community.entity.User;
+import com.nowcoder.community.service.FollowService;
+import com.nowcoder.community.service.LikeService;
 import com.nowcoder.community.service.UserService;
+import com.nowcoder.community.util.CommunityConstants;
 import com.nowcoder.community.util.CommunityUtil;
 import com.nowcoder.community.util.HostHolder;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +29,7 @@ import java.io.IOException;
 @Controller
 @RequestMapping("user")
 @Slf4j
-public class UserController {
+public class UserController implements CommunityConstants {
     @Autowired
     private HostHolder hostHolder;
     @Value("${server.servlet.context-path}")
@@ -37,6 +40,10 @@ public class UserController {
     private String loadPath;
     @Autowired
     private UserService userService;
+    @Autowired
+    private LikeService likeService;
+    @Autowired
+    private FollowService followService;
     @CheckLogin
     @RequestMapping(value = "setting",method = RequestMethod.GET)
     public String jumpToSettingPage() {
@@ -140,6 +147,32 @@ public class UserController {
         userService.updateUserPassword(user);
 
         return "redirect:/logout";
+    }
+    @RequestMapping(value = "profile/{userId}",method = RequestMethod.GET)
+    public String jumpToProfilePage(@PathVariable("userId") int userId,Model model) {
+        User user = hostHolder.getUser();
+        //查询个人主页的用户信息与其点赞信息
+        User targetUser = userService.getUserById(userId);
+        //对数据进行合法判断后再操作！
+        if (targetUser == null) {
+           throw new IllegalArgumentException("用户为空");
+        }
+        int userLikeCount = likeService.getUserLikeCount(targetUser.getId());
+        model.addAttribute("likeCount",userLikeCount);
+        model.addAttribute("target",targetUser);
+        //是否可以关注该用户
+        boolean hasFollowed = false;
+        if (user != null) {
+            hasFollowed = followService.getFollowStatus(user.getId(), ENTITY_TYPE_USER, targetUser.getId());
+        }
+        model.addAttribute("hasFollowed", hasFollowed);
 
+        //获取主页用户的关注数量
+        long followeeCount = followService.getFolloweeCount(targetUser.getId(), ENTITY_TYPE_USER);
+        model.addAttribute("followeeCount",followeeCount);
+        //获取主页用户的被关注数量
+        long followerCount = followService.getFollowerCount(ENTITY_TYPE_USER, targetUser.getId());
+        model.addAttribute("followerCount",followerCount);
+        return "/site/profile";
     }
 }

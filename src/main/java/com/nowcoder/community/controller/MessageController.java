@@ -1,5 +1,6 @@
 package com.nowcoder.community.controller;
 
+import com.nowcoder.community.annotation.CheckLogin;
 import com.nowcoder.community.entity.Message;
 import com.nowcoder.community.entity.Page;
 import com.nowcoder.community.entity.User;
@@ -31,6 +32,7 @@ public class MessageController {
     private HostHolder hostHolder;
 
     @RequestMapping(value = "list",method = RequestMethod.GET)
+    @CheckLogin
     public String getMessageList(Model model, Page page) {
         //获取当前登录的用户
         User user = hostHolder.getUser();

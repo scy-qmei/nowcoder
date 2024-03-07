@@ -8,6 +8,7 @@ import org.apache.ibatis.annotations.Param;
  * 登录凭证的数据访问层
  */
 @Mapper
+@Deprecated
 public interface LoginTicketMapper {
     /**
      * 向数据库中插入一条新的登录凭证
