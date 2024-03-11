@@ -79,4 +79,42 @@
         </if>
 
     </select>
+    <select id="selectLatestNotice" resultType="Message">
+        select <include refid="selectFields"></include>
+        from message
+        where conversation_id = #{conversationId}
+        and status != 2
+        and to_id = #{toId}
+        and from_id = 1
+        order by create_time desc
+        limit 0, 1
+    </select>
+    <select id="selectTotalNoticeCount" resultType="Integer">
+        select count(id)
+        from message
+        where conversation_id = #{conversationId}
+        and status != 2
+        and from_id = 1
+        and to_id = #{toId}
+    </select>
+    <select id="selectUnreadNoticeCount" resultType="Integer">
+        select count(id)
+        from message
+        where status = 0
+        and from_id = 1
+        and to_id = #{toId}
+        <if test="conversationId != null">
+            and conversation_id = #{conversationId}
+        </if>
+    </select>
+    <select id="selectNoticeList" resultType="Message">
+        select <include refid="selectFields"></include>
+        from message
+        where status != 2
+        and from_id = 1
+        and to_id = #{toId}
+        and conversation_id = #{conversationId}
+        order by create_time desc
+        limit #{offset}, #{limit}
+    </select>
 </mapper>

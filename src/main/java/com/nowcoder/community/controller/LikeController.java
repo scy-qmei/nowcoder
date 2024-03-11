@@ -8,7 +8,9 @@ import com.nowcoder.community.service.LikeService;
 import com.nowcoder.community.util.CommunityConstants;
 import com.nowcoder.community.util.CommunityUtil;
 import com.nowcoder.community.util.HostHolder;
+import com.nowcoder.community.util.RedisKeyUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -25,6 +27,9 @@ public class LikeController implements CommunityConstants {
     private LikeService likeService;
     @Autowired
     private EventProducer eventProducer;
+
+    @Autowired
+    private RedisTemplate redisTemplate;
 
     /**
      * 该业务就是执行实体的点赞业务，由于点赞业务通常是异步请求的方式，所以此时返回的是提示信息而不是html页面
@@ -63,6 +68,13 @@ public class LikeController implements CommunityConstants {
             //触发事件
             eventProducer.fireEvent(event);
         }
+
+        //对帖子进行点赞，需要涉及分数的修改，加入缓存等待被修改
+        if (entityType == COMMENT_TYPE_POST) {
+            String postScorekey = RedisKeyUtil.getPostScorekey();
+            redisTemplate.opsForSet().add(postScorekey, entityId);
+        }
+
 
         return CommunityUtil.getJsonString(0,null,map);
     }

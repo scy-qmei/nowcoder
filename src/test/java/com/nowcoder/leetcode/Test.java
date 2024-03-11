@@ -1,15 +1,38 @@
 package com.nowcoder.leetcode;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 public class Test {
     public static void main(String[] args) {
-       new Solution().rob(new int[]{2,7,9,3,1});
+       new Solution().lengthOfLongestSubstring("abcabcbb");
     }
 }
 class Solution {
+    public int lengthOfLongestSubstring(String s) {
+        List<Character> list = new ArrayList<>();
+        int slow = 0;
+        int fast = 1;
+        list.add(s.charAt(slow));
+        int res = 0;
+        while(fast < s.length()) {
+            char ch = s.charAt(fast);
+            if (!list.contains(ch)) {
+                list.add(ch);
+            } else {
+                res = Math.max(res, fast - slow);
+                for (int i = slow; i < fast; i++) {
+                    Character tmp = s.charAt(i);
+                    if (tmp == ch) {
+                        slow = ++i;
+                        break;
+                    }
+                    list.remove(tmp);
+                }
+            }
+            fast++;
+        }
+        return res;
+    }
     public int rob(int[] nums) {
         if (nums.length == 1) return nums[0];
         int[] dp = new int[nums.length + 1];

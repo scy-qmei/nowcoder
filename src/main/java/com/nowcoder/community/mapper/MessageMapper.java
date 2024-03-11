@@ -47,4 +47,39 @@ public interface MessageMapper {
 
 //    int updateReadMessage(Message message);
     int updateReadMessage(@Param("ids") List<Integer> ids);
+
+    /**
+     * 该方法是根据系统通知的类型来获取该类型的最新的系统通知，以显示在通知页面上
+     * @param toId 通知的用户的id
+     * @param conversationId 通知的类型
+     * @return
+     */
+    Message selectLatestNotice(@Param("toId") int toId,@Param("conversationId") String conversationId);
+
+    /**
+     * 方法是根据系统通知的类别获取该类型的通知有多少条
+     * @param toId 通知的用户的id
+     * @param conversationId 通知的类型
+     * @return
+     */
+    int selectTotalNoticeCount(@Param("toId") int toId,@Param("conversationId") String conversationId);
+
+    /**
+     * 方法是根据系统通知的类别获取该类型的未读通知有多少条
+     * @param toId 通知的用户的id
+     * @param conversationId 通知的类型 如果传入的类型为空，就查询所有类型的未读的系统通知的数量！
+     * @return
+     */
+    int selectUnreadNoticeCount(@Param("toId") int toId,@Param("conversationId") String conversationId);
+
+    /**
+     * 该方法是根据用户的id以及系统通知的类型去分页查询出系统通知列表
+     * @param toId 系统通知的用户id
+     * @param conversationId 系统通知的类别
+     * @param offset
+     * @param limit
+     * @return
+     */
+    List<Message> selectNoticeList(@Param("toId") int toId, @Param("conversationId") String conversationId,
+                                   @Param("offset") int offset, @Param("limit") int limit);
 }

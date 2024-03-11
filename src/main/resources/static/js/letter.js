@@ -7,6 +7,11 @@ function send_letter() {
 	$("#sendModal").modal("hide");
 	var toName = $("#recipient-name").val();
 	var toContent = $("#message-text").val();
+	// var csrf = $("meta[name = '_csrf']").attr("content");
+	// var csrfHeader = $("meta[name = '_csrf_header']").attr("content");
+	// $(document).ajaxSend(function (e, xhr, options) {
+	// 	xhr.setRequestHeader(csrfHeader, csrf);
+	// });
 	$.post(
 		CONTEXT_PATH + "/message/add",
 		{

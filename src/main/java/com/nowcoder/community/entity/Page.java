@@ -9,7 +9,7 @@ public class Page {
     //当前页数
     private int current=1;
     //每页显示多少条帖子
-    private int limit;
+    private int limit = 10;
     //总共有多少条帖子
     private int rows;
     //访问服务器的该页的访问路径

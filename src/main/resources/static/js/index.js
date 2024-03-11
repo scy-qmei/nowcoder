@@ -10,6 +10,11 @@ function publish() {
 	$("#publishModal").modal("hide");
 	var title = $("#recipient-name").val();
 	var content = $("#message-text").val();
+	// var csrf = $("meta[name = '_csrf']").attr("content");
+	// var csrfHeader = $("meta[name = '_csrf_header']").attr("content");
+	// $(document).ajaxSend(function (e, xhr, options) {
+	// 	xhr.setRequestHeader(csrfHeader, csrf);
+	// });
 	$.post(
 		CONTEXT_PATH + "/discuss/add",
 		{"title":title, "content":content},

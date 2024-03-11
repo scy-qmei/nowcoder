@@ -11,14 +11,12 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 
 @Service
 public class UserService implements CommunityConstants{
@@ -235,5 +233,36 @@ public class UserService implements CommunityConstants{
         String user = RedisKeyUtil.getUser(userId);
         //清除缓存，直接删除数据的key即可！
         redisTemplate.delete(user);
+    }
+
+    /**
+     * 这里因为我们跳过了security的认证逻辑，只用了其授权逻辑
+     * 但是注意在正常的认证逻辑时，认证完毕会返回一个authentication的实现类，封装了认证成功的信息，认证凭证以及权限信息
+     * 然后通过security底层的filter存储到securitycontext中，这样才能在认证/授权时容中取出用户信息作出相应的管理！
+     * 所以我们要自定义一个方法来获取用户的权限，然后再我们的认证逻辑处将用户的认证信息加入securitycontext才可以正常实现授权管理
+     * @param userId
+     * @return
+     */
+    public Collection<? extends GrantedAuthority> getAuthorities(int userId) {
+        User userById = this.getUserById(userId);
+        //用户的权限可以有很多，这里我们只设置了管理员/版主/用户权限
+        List<GrantedAuthority> list = new ArrayList<>();
+        list.add(
+                new GrantedAuthority() {
+                    @Override
+                    public String getAuthority() {
+                        switch (userById.getType()) {
+                            case 1:
+                                return AUTHORITY_ADMIN;
+                            case 2:
+                                return AUTHORITY_MODERATOR;
+                            default:
+                                return AUTHORITY_USER;
+                        }
+                    }
+                }
+        );
+        System.out.println(list);
+        return list;
     }
 }

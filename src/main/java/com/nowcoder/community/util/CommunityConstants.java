@@ -25,4 +25,16 @@ public interface CommunityConstants {
     String TOPIC_FOLLOW = "follow";
     //系统用户ID
     int SYSTEM_USER_ID = 1;
+    //消息的主题是涉及评论的修改，要及时同步到es
+    String ES_DISCUSSPOST_UPDATE = "update";
+    //消息的主题是涉及评论的删除，要及时同步到es
+    String ES_DISCUSSPOST_DELETE = "delete";
+    //用户权限是普通用户
+    String AUTHORITY_USER = "user";
+    //用户权限是管理员
+    String AUTHORITY_ADMIN = "admin";
+    //用户权限是版主
+    String AUTHORITY_MODERATOR = "moderator";
+    //消息的主题是分享
+    String TOPIC_SHARE = "share";
 }

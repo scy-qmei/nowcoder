@@ -4,6 +4,11 @@ $(function(){
 
 function follow() {
 	var btn = this;
+	// var csrf = $("meta[name = '_csrf']").attr("content");
+	// var csrfHeader = $("meta[name = '_csrf_header']").attr("content");
+	// $(document).ajaxSend(function (e, xhr, options) {
+	// 	xhr.setRequestHeader(csrfHeader, csrf);
+	// });
 	if($(btn).hasClass("btn-info")) {
 		$.post(
 			CONTEXT_PATH + "/follow",

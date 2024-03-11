@@ -6,6 +6,7 @@ import com.nowcoder.community.entity.User;
 import com.nowcoder.community.mapper.DiscussPostMapper;
 import com.nowcoder.community.mapper.UserMapper;
 import com.nowcoder.community.service.LikeService;
+import com.nowcoder.community.service.MessageService;
 import com.nowcoder.community.util.CommunityConstants;
 import com.nowcoder.community.util.HostHolder;
 import lombok.extern.java.Log;
@@ -35,14 +36,16 @@ public class HomeController implements CommunityConstants {
     private HostHolder hostHolder;
 
     @RequestMapping(value = "index", method = RequestMethod.GET)
+    public String getIndexPage(Model model, Page page,
+                               @RequestParam(value = "orderMode",defaultValue = "0") int orderMode) {
 
-    public String getIndexPage(Model model, Page page) {
+
         page.setRows(discussPostMapper.getDiscussPostRows(0));
         page.setPath("index");
         page.setLimit(10);
         int offset = page.getOffset();
 
-        List<DiscussPost> discussPosts = discussPostMapper.selectDiscussPosts(0, offset, page.getLimit());
+        List<DiscussPost> discussPosts = discussPostMapper.selectDiscussPosts(0, offset, page.getLimit(), orderMode);
         List<Map<String, Object>> dps = new ArrayList<>();
         if (discussPosts != null) {
             for (DiscussPost discussPost : discussPosts) {
@@ -64,6 +67,7 @@ public class HomeController implements CommunityConstants {
             }
         }
         model.addAttribute("discussPosts", dps);
+        model.addAttribute("orderMode", orderMode);
         return "/index";
     }
 
@@ -74,5 +78,14 @@ public class HomeController implements CommunityConstants {
     @RequestMapping(value = "error",method = RequestMethod.GET)
     public String jumpTo500Page() {
         return "/error/500";
+    }
+
+    /**
+     * 该方法在普通请求访问时，如果权限不足，就直接跳转到404页面！
+     * @return
+     */
+    @RequestMapping(value = "noAuthority",method = RequestMethod.GET)
+    public String jumpTONoAuthorityPage() {
+        return "/error/404";
     }
 }

@@ -6,6 +6,10 @@ import com.nowcoder.community.service.UserService;
 import com.nowcoder.community.util.CookieUtil;
 import com.nowcoder.community.util.HostHolder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.context.SecurityContextImpl;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.ModelAndView;
@@ -47,6 +51,12 @@ public class LoginTicketInterceptor implements HandlerInterceptor {
                 User userById = userService.getUserById(loginTicket.getUserId());
                 //在threadlocal中存储用户数据
                 hostHolder.setUser(userById);
+                //找到我们的认证逻辑，当成功认证用户登录后，封装认证信息放入到securitycontext中
+                //首先封装token
+                Authentication authentication =  new UsernamePasswordAuthenticationToken(userById, userById.getPassword(),
+                        userService.getAuthorities(userById.getId()));
+                //放入context中即可！
+                SecurityContextHolder.setContext(new SecurityContextImpl(authentication));
             }
         }
         //注意这里一定返回true，如果返回false请求就不会被执行了，只有为true请求才会被放行
@@ -67,5 +77,6 @@ public class LoginTicketInterceptor implements HandlerInterceptor {
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
         hostHolder.clear();
+//        SecurityContextHolder.clearContext();
     }
 }

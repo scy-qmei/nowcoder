@@ -1,13 +1,16 @@
 package com.nowcoder.community.controller;
 
+import com.alibaba.fastjson.JSONObject;
 import com.nowcoder.community.annotation.CheckLogin;
 import com.nowcoder.community.entity.Message;
 import com.nowcoder.community.entity.Page;
 import com.nowcoder.community.entity.User;
 import com.nowcoder.community.service.MessageService;
 import com.nowcoder.community.service.UserService;
+import com.nowcoder.community.util.CommunityConstants;
 import com.nowcoder.community.util.CommunityUtil;
 import com.nowcoder.community.util.HostHolder;
+
 
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,12 +21,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.util.HtmlUtils;
 
 import java.util.*;
 
 @Controller
 @RequestMapping("message")
-public class MessageController {
+public class MessageController implements CommunityConstants {
     @Autowired
     private MessageService messageService;
     @Autowired
@@ -62,6 +66,9 @@ public class MessageController {
             messageVoList.add(conversationMap);
             totalUnreadCount += unReadMessageCount;
         }
+        int totalUnreadNotice = messageService.selectUnreadNoticeCount(user.getId(), null);
+
+        model.addAttribute("totalUnreadNotice", totalUnreadNotice);
         model.addAttribute("totalUnread",totalUnreadCount);
         model.addAttribute("convers", messageVoList);
         return "/site/letter";
@@ -145,5 +152,132 @@ public class MessageController {
         messageService.insertMessage(message);
 
         return CommunityUtil.getJsonString(0,"发送成功!");
+    }
+
+    @RequestMapping(value = "notice/list",method = RequestMethod.GET)
+    public String getNoticeList(Model model) {
+        User user = hostHolder.getUser();
+
+        //封装评论数据
+        Map<String, Object> commentMap = new HashMap<>();
+        Message commentMsg = messageService.selectLastestNotice(user.getId(), TOPIC_COMMENT);
+        //逻辑要严谨，使用数据前首先判空！！！
+        int unreadCommentCount = 0;
+        commentMap.put("message", commentMsg);
+        if (commentMsg != null) {
+
+            int totalCommentCount = messageService.selectTotalNoticeCount(user.getId(), TOPIC_COMMENT);
+            commentMap.put("totalCount",totalCommentCount);
+
+            unreadCommentCount = messageService.selectUnreadNoticeCount(user.getId(), TOPIC_COMMENT);
+            commentMap.put("unreadCount",unreadCommentCount);
+
+            //注意我们的message的内容存入数据库的时候经过了HTML的转义处理，这里要转义回来
+            String commentContent = HtmlUtils.htmlUnescape(commentMsg.getContent());
+            Map<String, Object> commentDataMap = JSONObject.parseObject(commentContent, Map.class);
+
+            User commentUser = userService.getUserById((Integer) commentDataMap.get("userId"));
+            commentMap.put("user",commentUser);
+            commentMap.put("entityType",commentDataMap.get("entityType"));
+            commentMap.put("entityId",commentDataMap.get("entityId"));
+            commentMap.put("postId", commentDataMap.get("postId"));
+        }
+
+
+        //封装点赞数据
+        int unreadlikeCount = 0;
+        Map<String, Object> likeMap = new HashMap<>();
+        Message likeMsg = messageService.selectLastestNotice(user.getId(), TOPIC_LIKE);
+        likeMap.put("message", likeMsg);
+        if (likeMsg != null) {
+
+            int totallikeCount = messageService.selectTotalNoticeCount(user.getId(), TOPIC_LIKE);
+            likeMap.put("totalCount",totallikeCount);
+
+            unreadlikeCount = messageService.selectUnreadNoticeCount(user.getId(), TOPIC_LIKE);
+            likeMap.put("unreadCount",unreadlikeCount);
+
+            //注意我们的message的内容存入数据库的时候经过了HTML的转义处理，这里要转义回来
+            String likeContent = HtmlUtils.htmlUnescape(likeMsg.getContent());
+            Map<String, Object> likeDataMap = JSONObject.parseObject(likeContent, Map.class);
+
+            User likeUser = userService.getUserById((Integer) likeDataMap.get("userId"));
+            likeMap.put("user",likeUser);
+            likeMap.put("entityType",likeDataMap.get("entityType"));
+            likeMap.put("entityId",likeDataMap.get("entityId"));
+            likeMap.put("postId", likeDataMap.get("postId"));
+        }
+
+
+        //封装关注数据
+        int unreadfollowCount = 0;
+        Map<String, Object> followMap = new HashMap<>();
+        Message followMsg = messageService.selectLastestNotice(user.getId(), TOPIC_FOLLOW);
+        //这里一定先放入message，再判断是否非空，因为在前端的页面判断中是需要用到message属性的！
+        followMap.put("message", followMsg);
+        if (followMsg != null) {
+
+            int totalfollowCount = messageService.selectTotalNoticeCount(user.getId(), TOPIC_FOLLOW);
+            followMap.put("totalCount",totalfollowCount);
+
+            unreadfollowCount = messageService.selectUnreadNoticeCount(user.getId(), TOPIC_FOLLOW);
+            followMap.put("unreadCount",unreadfollowCount);
+
+            //注意我们的message的内容存入数据库的时候经过了HTML的转义处理，这里要转义回来
+            String followContent = HtmlUtils.htmlUnescape(followMsg.getContent());
+            Map<String, Object> followDataMap = JSONObject.parseObject(followContent, Map.class);
+
+            User followUser = userService.getUserById((Integer) followDataMap.get("userId"));
+            followMap.put("user",followUser);
+            followMap.put("entityType",followDataMap.get("entityType"));
+            followMap.put("entityId",followDataMap.get("entityId"));
+        }
+
+        int totalUnreadMsg = messageService.selectUnReadMessageCount(user.getId(), null);
+
+        model.addAttribute("comment",commentMap);
+        model.addAttribute("like",likeMap);
+        model.addAttribute("follow",followMap);
+        model.addAttribute("totalUnreadMsg",totalUnreadMsg);
+        model.addAttribute("totalUnread", unreadCommentCount + unreadfollowCount + unreadlikeCount);
+        return "/site/notice";
+    }
+
+    @RequestMapping(value = "notice/detail/{topic}",method = RequestMethod.GET)
+    public String getCommentNoticeDetail(@PathVariable("topic") String topic,Model model, Page page) {
+        User user = hostHolder.getUser();
+        //设置分页属性
+        page.setLimit(5);
+        page.setRows(messageService.selectTotalNoticeCount(user.getId(), topic));
+        page.setPath("/message/notice/detail/" + topic);
+
+        List<Message> noticeList = messageService.selectNoticeList(user.getId(), topic, page.getOffset(), page.getLimit());
+        List<Map<String, Object>> noticeVoList = new ArrayList<>();
+        for(Message message : noticeList) {
+            Map<String,Object> noticeVo = new HashMap<>();
+
+            noticeVo.put("message", message);
+
+            String content = HtmlUtils.htmlUnescape(message.getContent());
+            Map<String,Object> msgContent = JSONObject.parseObject(content, Map.class);
+
+            User userId = userService.getUserById((Integer) msgContent.get("userId"));
+            noticeVo.put("user", userId);
+            noticeVo.put("entityType", msgContent.get("entityType"));
+            noticeVo.put("entityId", msgContent.get("entityId"));
+            noticeVo.put("postId", msgContent.get("postId"));
+            //添加系统用户的信息,这里因为系统通知的发送者都是系统用户，即id为1的！
+            noticeVo.put("fromUser", userService.getUserById(message.getFromId()));
+
+            noticeVoList.add(noticeVo);
+        }
+        List<Integer> unreadList = getUnreadMessage(noticeList);
+        //这里已经实例化了，所以肯定不为null，所以判断条件是判断集合是否为空
+        if (!unreadList.isEmpty()) {
+            messageService.updateReadMessage(unreadList);
+        }
+        model.addAttribute("topic", topic);
+        model.addAttribute("notices", noticeVoList);
+        return "/site/notice-detail";
     }
 }

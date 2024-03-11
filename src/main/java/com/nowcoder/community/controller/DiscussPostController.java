@@ -1,10 +1,8 @@
 package com.nowcoder.community.controller;
 
 import com.nowcoder.community.annotation.CheckLogin;
-import com.nowcoder.community.entity.Comment;
-import com.nowcoder.community.entity.DiscussPost;
-import com.nowcoder.community.entity.Page;
-import com.nowcoder.community.entity.User;
+import com.nowcoder.community.entity.*;
+import com.nowcoder.community.event.EventProducer;
 import com.nowcoder.community.service.CommentService;
 import com.nowcoder.community.service.DiscussPostService;
 import com.nowcoder.community.service.LikeService;
@@ -12,7 +10,9 @@ import com.nowcoder.community.service.UserService;
 import com.nowcoder.community.util.CommunityConstants;
 import com.nowcoder.community.util.CommunityUtil;
 import com.nowcoder.community.util.HostHolder;
+import com.nowcoder.community.util.RedisKeyUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +33,10 @@ public class DiscussPostController implements CommunityConstants {
     private CommentService commentService;
     @Autowired
     private LikeService likeService;
+    @Autowired
+    private EventProducer eventProducer;
+    @Autowired
+    private RedisTemplate redisTemplate;
 
     @RequestMapping(value = "add",method = RequestMethod.POST)
     @ResponseBody
@@ -47,10 +51,22 @@ public class DiscussPostController implements CommunityConstants {
         discussPost.setCommentCount(0);
         discussPostService.addDiscussPost(discussPost);
 
+        //添加帖子成功，创建一个事件对象放入消息队列，供消费者消费将帖子更新到ES
+        Event event = new Event()
+                .setTopic(ES_DISCUSSPOST_UPDATE)
+                .setEntityType(COMMENT_TYPE_POST)
+                .setEntityId(discussPost.getId())
+                .setEntityUserId(discussPost.getUserId())
+                .setUserId(hostHolder.getUser().getId());
+
+        eventProducer.fireEvent(event);
+        //添加新帖子，给帖子一个初始化分数
+        String postScorekey = RedisKeyUtil.getPostScorekey();
+        redisTemplate.opsForSet().add(postScorekey, discussPost.getId());
+
         return CommunityUtil.getJsonString(0, "发送帖子成功");
     }
     @RequestMapping(value = "detail/{id}",method = RequestMethod.GET)
-
     public String getDiscussPostDetail(@PathVariable("id") int id, Model model, Page page) {
         //显示帖子详情
         //这里添加显示的帖子内容以及发布帖子的用户信息
@@ -126,5 +142,66 @@ public class DiscussPostController implements CommunityConstants {
         }
         model.addAttribute("comments", commentVoList);
         return "/site/discuss-detail";
+    }
+
+    /**
+     * 对帖子进行置顶，这里采用的是异步请求
+     * @param postId
+     * @return
+     */
+    @RequestMapping(value = "top",method = RequestMethod.POST)
+    @ResponseBody
+    public String setTop(int postId) {
+        discussPostService.updateDiscussPostType(postId, 1);
+
+        //对帖子进行更新后，要及时的同步到es中，方便搜索
+        Event event = new Event()
+                .setTopic(ES_DISCUSSPOST_UPDATE)
+                .setUserId(hostHolder.getUser().getId())
+                .setEntityType(COMMENT_TYPE_POST)
+                .setEntityId(postId);
+        eventProducer.fireEvent(event);
+        return CommunityUtil.getJsonString(0);
+    }
+    /**
+     * 对帖子进行加精，这里采用的是异步请求
+     * @param postId
+     * @return
+     */
+    @RequestMapping(value = "wonderful",method = RequestMethod.POST)
+    @ResponseBody
+    public String setWonderful(int postId) {
+        discussPostService.updateDiscussPostStatus(postId, 1);
+
+        //对帖子进行更新后，要及时的同步到es中，方便搜索
+        Event event = new Event()
+                .setTopic(ES_DISCUSSPOST_UPDATE)
+                .setUserId(hostHolder.getUser().getId())
+                .setEntityType(COMMENT_TYPE_POST)
+                .setEntityId(postId);
+        eventProducer.fireEvent(event);
+        //对帖子进行加精了，也需要计算分数，加入缓存
+        String postScorekey = RedisKeyUtil.getPostScorekey();
+        redisTemplate.opsForSet().add(postScorekey, postId);
+        return CommunityUtil.getJsonString(0);
+    }
+    /**
+     * 对帖子进行删除，这里采用的是异步请求
+     * @param postId
+     * @return
+     */
+    @RequestMapping(value = "delete",method = RequestMethod.POST)
+    @ResponseBody
+    public String setDelete(int postId) {
+        discussPostService.updateDiscussPostStatus(postId, 2);
+
+        //对帖子进行删除后，要及时的同步到es中，但这里是删除事件，要额外编写
+        Event event = new Event()
+                .setTopic(ES_DISCUSSPOST_DELETE)
+                .setUserId(hostHolder.getUser().getId())
+                .setEntityType(COMMENT_TYPE_POST)
+                .setEntityId(postId);
+        eventProducer.fireEvent(event);
+        return CommunityUtil.getJsonString(0);
     }
 }

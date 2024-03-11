@@ -8,6 +8,8 @@ import com.nowcoder.community.mapper.DiscussPostMapper;
 import com.nowcoder.community.mapper.LoginTicketMapper;
 import com.nowcoder.community.mapper.MessageMapper;
 import com.nowcoder.community.mapper.UserMapper;
+import com.nowcoder.community.mapper.elasticsearch.DiscussPostRepository;
+import com.nowcoder.community.service.DiscussPostService;
 import com.nowcoder.community.util.MailClient;
 import com.nowcoder.community.util.SensitiveFilter;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -42,6 +44,10 @@ class NowcoderCommunityApplicationTests {
     private SensitiveFilter sensitiveFilter;
     @Autowired
     private Producer producer;
+    @Autowired
+    private DiscussPostRepository discussPostRepository;
+    @Autowired
+    private DiscussPostService discussPostService;
 
     @Autowired
     private MessageMapper messageMapper;
@@ -103,11 +109,18 @@ class NowcoderCommunityApplicationTests {
 //        int count2 = messageMapper.selectUnReadMessageCount(111, "111_131");
 //        System.out.println(count2);
 
-        producer.sendMessage("test","hello");
-        producer.sendMessage("test","hello1");
-        Thread.sleep(5000);
-
-
+//        producer.sendMessage("test","hello");
+//        producer.sendMessage("test","hello1");
+//        Thread.sleep(5000);
+//        discussPostRepository.saveAll(discussPostService.selectDiscussPosts(101, 0, 100));
+//        discussPostRepository.saveAll(discussPostService.selectDiscussPosts(102, 0, 100));
+//        discussPostRepository.saveAll(discussPostService.selectDiscussPosts(103, 0, 100));
+//        discussPostRepository.saveAll(discussPostService.selectDiscussPosts(111, 0, 100));
+//        discussPostRepository.saveAll(discussPostService.selectDiscussPosts(112, 0, 100));
+//        discussPostRepository.saveAll(discussPostService.selectDiscussPosts(131, 0, 100));
+//        discussPostRepository.saveAll(discussPostService.selectDiscussPosts(132, 0, 100));
+//        discussPostRepository.saveAll(discussPostService.selectDiscussPosts(133, 0, 100));
+//        discussPostRepository.saveAll(discussPostService.selectDiscussPosts(134, 0, 100));
     }
 
 
