@@ -19,6 +19,8 @@ public class  RedisKeyUtil {
     private static final String PREFIX_DAU = "dau";
     //分数发生修改，需要重新计算的帖子的id的key
     private static final String PREFIX_POST = "post";
+    //缓存热帖列表的key
+    private static final String PREFIX_CACHE = "cache";
 
     //生成实体的赞的redis的key
     public static String generateKey(int entityType, int entityId) {
@@ -100,4 +102,12 @@ public class  RedisKeyUtil {
     public static String getPostScorekey() {
         return PREFIX_POST + SPLIT + "score";
     }
+
+    public static String getPostListKey(int offset, int limit) {
+        return PREFIX_CACHE + SPLIT + offset + SPLIT + limit;
+    }
+    public static String getPostRowsKey(int userId) {
+        return PREFIX_CACHE + SPLIT + userId;
+    }
+
 }

@@ -52,4 +52,11 @@ public class CommentService implements CommunityConstants {
     public Comment selectCommentById(int commentId) {
         return commentMapper.selectCommentById(commentId);
     }
+
+    public int selectCommentCountByUser(int userId) {
+        return commentMapper.selectCommentCountByUser(userId);
+    }
+    public List<Comment> selectCommentByUser(int userId, int offst, int limit) {
+        return commentMapper.selectCommentByUser(userId, offst, limit);
+    }
 }

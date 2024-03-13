@@ -1,13 +1,16 @@
 package com.nowcoder.community.controller;
 
 import com.nowcoder.community.annotation.CheckLogin;
+import com.nowcoder.community.entity.Comment;
+import com.nowcoder.community.entity.DiscussPost;
+import com.nowcoder.community.entity.Page;
 import com.nowcoder.community.entity.User;
-import com.nowcoder.community.service.FollowService;
-import com.nowcoder.community.service.LikeService;
-import com.nowcoder.community.service.UserService;
+import com.nowcoder.community.service.*;
 import com.nowcoder.community.util.CommunityConstants;
 import com.nowcoder.community.util.CommunityUtil;
 import com.nowcoder.community.util.HostHolder;
+import com.qiniu.util.Auth;
+import com.qiniu.util.StringMap;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +20,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.ServletOutputStream;
@@ -25,6 +29,10 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Controller
 @RequestMapping("user")
@@ -44,10 +52,57 @@ public class UserController implements CommunityConstants {
     private LikeService likeService;
     @Autowired
     private FollowService followService;
+    @Autowired
+    private DiscussPostService discussPostService;
+    @Autowired
+    private CommentService commentService;
+
+    @Value("${qiniu.key.access}")
+    private String accessKey;
+    @Value("${qiniu.key.secret}")
+    private String secretKey;
+    @Value("${qiniu.bucket.header.name}")
+    private String headerName;
+    @Value("${qiniu.bucket.header.url}")
+    private String headerUrl;
+
+    /**
+     * 在服务端将文件直接上传给云服务器，这里当浏览器跳转到setting页面，就生成一些访问七牛云需要的数据
+     * @return
+     */
     @CheckLogin
     @RequestMapping(value = "setting",method = RequestMethod.GET)
-    public String jumpToSettingPage() {
+    public String jumpToSettingPage(Model model) {
+        //生成随机文件名
+        String fileName = CommunityUtil.generateRandomStr();
+        //告诉七牛云期望的返回信息以及信息类型
+        StringMap policy = new StringMap();
+        policy.put("returnBody",CommunityUtil.getJsonString(0));
+        //生成上传凭证
+        Auth auth = Auth.create(accessKey, secretKey);
+        //生成凭证的几个参数，存储空间名，文件名，token的有效期单位是s，期望的响应信息及其类型
+        String uploadToken = auth.uploadToken(headerName, fileName, 3600, policy);
+
+        model.addAttribute("uploadToken",uploadToken);
+        model.addAttribute("fileName", fileName);
         return "/site/setting";
+    }
+
+    /**
+     * 注意该方法返回的是json字符串，应对的是异步请求，所以一定加上responsebody注解！！
+     *
+     * @param fileName
+     * @return
+     */
+    @RequestMapping(value = "header/url", method = RequestMethod.POST)
+    @ResponseBody
+    public String updateHeaderUrl(String fileName) {
+        if (StringUtils.isBlank(fileName)) {
+            return CommunityUtil.getJsonString(1,"文件名不能为空");
+        }
+        String newUrl = headerUrl + "/" + fileName;
+        userService.updateUserHeaderUrl(hostHolder.getUser().getId(), newUrl);
+        return CommunityUtil.getJsonString(0);
     }
 
     /**
@@ -55,7 +110,10 @@ public class UserController implements CommunityConstants {
      * @param headImage
      * @param model
      * @return
+     *
+     * 最新情况，已经弃用，开发了上传到云服务器的功能
      */
+    @Deprecated
     @RequestMapping(value = "header",method = RequestMethod.POST)
     public String uploadHeader(MultipartFile headImage, Model model) {
         //首先对用户上传的图片判空
@@ -87,13 +145,16 @@ public class UserController implements CommunityConstants {
     }
 
     /**
-     * 该方法就是当用户成功上传图片到服务器时，需要从服务器获取该图片进行头像地的更新
+     * 该方法就是当用户成功上传图片到本地服务器时，需要从服务器获取该图片进行头像地的更新
      * 注意上传成功后，头像图片由对应的web路径了，所以该方法的请求路径应该与其匹配
      * 注意因为该方法响应给客户端的是一个图片，所以需要手动的用response进行处理，不需要返回字符串进行页面跳转了！
      * @param fileName 头像图片的web链接中的最后一项的文件名称，通过路径变量获取
      * @param response 响应给客户端一个图片
      *
+     * 最新情况，已经弃用，开发了上传到云服务器的功能
+     *
      */
+    @Deprecated
     @RequestMapping(value = "header/{fileName}",method = RequestMethod.GET)
     public void getHeader(@PathVariable String fileName, HttpServletResponse response) {
         String suffix = fileName.substring(fileName.lastIndexOf('.'));
@@ -173,6 +234,60 @@ public class UserController implements CommunityConstants {
         //获取主页用户的被关注数量
         long followerCount = followService.getFollowerCount(ENTITY_TYPE_USER, targetUser.getId());
         model.addAttribute("followerCount",followerCount);
+        model.addAttribute("user",user);
         return "/site/profile";
+    }
+
+    @RequestMapping(value = "post",method = RequestMethod.GET)
+    public String getUserPostList(Model model, Page page) {
+        User user = hostHolder.getUser();
+        int discussPostRows = discussPostService.getDiscussPostRows(user.getId());
+
+        page.setLimit(5);
+        page.setPath("/user/post");
+        page.setRows(discussPostRows);
+
+        List<DiscussPost> discussPosts = discussPostService.selectDiscussPosts(user.getId(), page.getOffset(), page.getLimit(), 0);
+        List<Map<String,Object>> postVoList = new ArrayList<>();
+        for (DiscussPost discussPost : discussPosts) {
+            Map<String,Object> postVo = new HashMap<>();
+            postVo.put("post", discussPost);
+
+            Long likeCount = likeService.getLikeCount(COMMENT_TYPE_POST, discussPost.getId());
+            postVo.put("likeCount", likeCount);
+            postVoList.add(postVo);
+        }
+        model.addAttribute("posts", postVoList);
+        model.addAttribute("count", discussPostRows);
+        model.addAttribute("user", user);
+
+        return "/site/my-post";
+    }
+    @RequestMapping(value = "reply",method = RequestMethod.GET)
+    public String getUserReplyList(Model model, Page page) {
+        User user = hostHolder.getUser();
+        int count = commentService.selectCommentCountByUser(user.getId());
+
+        page.setRows(count);
+        page.setLimit(10);
+        page.setPath("/user/reply");
+
+        List<Comment> comments = commentService.selectCommentByUser(user.getId(), page.getOffset(), page.getLimit());
+        List<Map<String,Object>>  commentVoList = new ArrayList<>();
+        for (Comment comment : comments) {
+            Map<String,Object> commentVo = new HashMap<>();
+            commentVo.put("comment",comment);
+
+            DiscussPost discussPost = discussPostService.selectDiscussPostById(comment.getEntityId());
+            commentVo.put("post", discussPost);
+            commentVoList.add(commentVo);
+        }
+
+        model.addAttribute("user", user);
+        model.addAttribute("comments", commentVoList);
+        model.addAttribute("count", count);
+
+        return "/site/my-reply";
+
     }
 }

@@ -39,10 +39,17 @@ public class ShareController implements CommunityConstants {
     private String domain;
     @Value("${server.servlet.context-path}")
     private String contextPath;
+    @Value("${qiniu.bucket.share.url}")
+    private String shareBucketUrl;
 
     @Autowired
     private EventProducer eventProducer;
 
+    /**
+     * 对方法进行重构，用户分享的图片不是保存在本地，而是上传到云服务器！
+     * @param htmlUrl
+     * @return
+     */
     @RequestMapping(value = "share",method = RequestMethod.GET)
     @ResponseBody
     public String shareImage(String htmlUrl) {
@@ -62,7 +69,9 @@ public class ShareController implements CommunityConstants {
         //触发事件
         eventProducer.fireEvent(event);
         //拼接一个提供给浏览器的访问分享图片的请求链接
-        String shareImageUrl = domain  + contextPath + "/share/image/" + fileName;
+        //String shareImageUrl = domain  + contextPath + "/share/image/" + fileName;
+        //上传到云服务器的，图片的访问路径
+        String shareImageUrl = shareBucketUrl + "/" + fileName;
         Map<String, Object> map = new HashMap<>();
         map.put("shareImageUrl", shareImageUrl);
         return CommunityUtil.getJsonString(0, null, map);

@@ -44,4 +44,8 @@ public interface CommentMapper {
      * @return
      */
     Comment selectCommentById(int commentId);
+
+    int selectCommentCountByUser(int userId);
+    List<Comment> selectCommentByUser(@Param("userId") int userId, @Param("offset") int offset,
+                                      @Param("limit") int limit);
 }

@@ -17,8 +17,8 @@ import java.util.Date;
  * 这是针对于Service层的AOP切面，用来给service层插入各种系统需求
  * 注意切面类也要放入IOC容器
  */
-@Aspect
-@Component
+//@Aspect
+//@Component
 @Slf4j
 public class ServiceAspect {
     //pointcut方法就是指明切点表达式，以便复用

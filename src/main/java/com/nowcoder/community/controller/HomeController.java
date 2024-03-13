@@ -5,6 +5,7 @@ import com.nowcoder.community.entity.Page;
 import com.nowcoder.community.entity.User;
 import com.nowcoder.community.mapper.DiscussPostMapper;
 import com.nowcoder.community.mapper.UserMapper;
+import com.nowcoder.community.service.DiscussPostService;
 import com.nowcoder.community.service.LikeService;
 import com.nowcoder.community.service.MessageService;
 import com.nowcoder.community.util.CommunityConstants;
@@ -27,7 +28,7 @@ import java.util.Map;
 @Controller
 public class HomeController implements CommunityConstants {
     @Autowired
-    private DiscussPostMapper discussPostMapper;
+    private DiscussPostService discussPostService;
     @Autowired
     private UserMapper userMapper;
     @Autowired
@@ -39,13 +40,13 @@ public class HomeController implements CommunityConstants {
     public String getIndexPage(Model model, Page page,
                                @RequestParam(value = "orderMode",defaultValue = "0") int orderMode) {
 
-
-        page.setRows(discussPostMapper.getDiscussPostRows(0));
+        //这里频繁获取，设置缓存
+        page.setRows(discussPostService.getDiscussPostRows(0));
         page.setPath("index");
         page.setLimit(10);
         int offset = page.getOffset();
-
-        List<DiscussPost> discussPosts = discussPostMapper.selectDiscussPosts(0, offset, page.getLimit(), orderMode);
+        //这里频繁获取，设置缓存
+        List<DiscussPost> discussPosts = discussPostService.selectDiscussPosts(0, offset, page.getLimit(), orderMode);
         List<Map<String, Object>> dps = new ArrayList<>();
         if (discussPosts != null) {
             for (DiscussPost discussPost : discussPosts) {

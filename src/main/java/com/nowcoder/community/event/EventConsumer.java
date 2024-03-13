@@ -8,17 +8,29 @@ import com.nowcoder.community.service.DiscussPostService;
 import com.nowcoder.community.service.ElasticSearchService;
 import com.nowcoder.community.service.MessageService;
 import com.nowcoder.community.util.CommunityConstants;
+import com.nowcoder.community.util.CommunityUtil;
+import com.qiniu.common.QiniuException;
+import com.qiniu.http.Response;
+import com.qiniu.storage.Configuration;
+import com.qiniu.storage.Region;
+import com.qiniu.storage.UploadManager;
+import com.qiniu.util.Auth;
+import com.qiniu.util.StringMap;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Component;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledFuture;
 
 /**
  * 这就是事件的消费者
@@ -31,6 +43,14 @@ public class EventConsumer implements CommunityConstants {
     private String wkImageCommand;
     @Value("${wk.image.storage}")
     private String wkImageStorage;
+    @Value("${qiniu.key.access}")
+    private String accessKey;
+    @Value("${qiniu.key.secret}")
+    private String secretKey;
+    @Value("${qiniu.bucket.share.name}")
+    private String shareBucketName;
+    @Autowired
+    private ThreadPoolTaskScheduler threadPoolTaskScheduler;
     @Autowired
     private MessageService messageService;
     @Autowired
@@ -158,6 +178,90 @@ public class EventConsumer implements CommunityConstants {
             log.info("html成功转换为img，执行命令为：" + cmd);
         } catch (IOException e) {
             log.error("html转换为img失败,错误原因为:" + e.getMessage());
+        }
+        //对方法进行重构，将本地的图片上传到云服务器，就可以删除本地的图片了！
+        //这里注意exec是把任务交给操作系统执行，然后自己往下执行是一个异步的操作，因此try代码块的执行可能早于图片的生成
+        //因此这里我们不能直接编写代码逻辑，而是要等待图片生成成功在进行上传
+        //等待exec完成，又不能直接线程睡眠阻塞，这样是影响系统性能，这时就可以考虑使用定时任务，单开一个线程用来尝试上传图片
+        //如果图片还没有生成成功，就上传失败，从而隔一段时间后重试！
+        //而这里由于消息队列同一消费者组的消费者只能有一个获取消息，因此可以使用线程池避免分布式问题！
+        UploadTaks uploadTaks = new UploadTaks(fileName, suffix);
+        //延迟500ms执行任务 这里返回的future对象封装的是线程的执行结果，并且可以终止线程！
+        Future future = threadPoolTaskScheduler.scheduleAtFixedRate(uploadTaks, 500);
+        uploadTaks.setFuture(future);
+    }
+    //这里因为上传任务的逻辑是比较复杂的，所以我们专门编写一个线程体而不是采用匿名创建线程体的方式！
+    class UploadTaks implements Runnable{
+        //上传文件需要文件名以及文件的后缀名
+        private String fileName;
+        private String suffix;
+        //需要记录任务开始的时间，到30s没有成功就放弃任务
+        private long startTime;
+        //需要记录任务上传图片的次数，超过三次失败也取消
+        private int uploadTimes;
+        //用来终止线程执行任务
+        private Future future;
+        //利用构造函数完成属性的初始化
+        public UploadTaks(String fileName, String suffix) {
+            this.fileName = fileName;
+            this.suffix = suffix;
+            this.startTime = System.currentTimeMillis();
+        }
+
+        public void setFuture(Future future) {
+            this.future = future;
+        }
+
+        @Override
+        public void run() {
+            //首先判断线程执行任务是否冲过30s了，若是就直接终止任务，可能的原因有图片生成失败/网络原因/服务器原因上传失败
+            if ((System.currentTimeMillis() - startTime) > 30000) {
+                log.error("执行时间过长，任务终止，上传的文件名为:" + fileName);
+                //终止线程执行任务
+                future.cancel(true);
+                return;
+            }
+            //如果图片生成成功，但是上传一直失败，达到3次也终止
+            if (uploadTimes == 3) {
+                log.error("上传次数过多，终止任务，上传的文件名为:" + fileName);
+                future.cancel(true);
+                return;
+            }
+            //如果不满足终止条件，就继续尝试上传图片到云服务器
+            //判断图片是否生成成功
+            String path = wkImageStorage + "/" + fileName + suffix;
+            File file = new File(path);
+            if (file.exists()) {
+                //如果图片生成成功了，进行上传，这里的上传逻辑和客户端上传是类似的
+                //设置响应信息
+                StringMap policy = new StringMap();
+                policy.put("returnBody", CommunityUtil.getJsonString(0));
+                //生成凭证
+                Auth auth = Auth.create(accessKey, secretKey);
+                String uploadToken = auth.uploadToken(shareBucketName, fileName, 3600, policy);
+                //指定上传机房
+                UploadManager manager = new UploadManager(new Configuration(Region.region2()));
+                try {
+                    //进行上传，获取响应结果
+                    Response response = manager.put(
+                            path,fileName,uploadToken,null,"image/"+suffix,false
+                    );
+                    //响应结果转换为json
+                    JSONObject json = JSONObject.parseObject(response.bodyString());
+                    if (json == null || json.get("code") == null || !json.get("code").toString().equals("0")) {
+                        //如果失败，打印错误日志
+                        log.info(String.format("第%d次上传失败，上传的文件名为：%s", ++uploadTimes, fileName));
+                    } else {
+                        //如果成功，打印日志，停止任务的执行
+                        log.info(String.format("第%d次上传成功，上传的文件名为：%s", ++uploadTimes, fileName));
+                        future.cancel(true);
+                    }
+                } catch (QiniuException e) {
+                    log.info(String.format("第%d次上传失败，上传的文件名为：%s", ++uploadTimes, fileName));
+                }
+            } else {
+                log.info("等待图片生成,生成的文件名为:" + fileName);
+            }
         }
     }
 
